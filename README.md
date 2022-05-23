@@ -1,3 +1,5 @@
+**Note** This is a temporary upstream fork of [BLSTRS](https://github.com/filecoin-project/blstrs) to allow for experimental changes that maybe contributed back once experimentation is complete.
+
 # `blstrs`
 
 > Implementation of BLS12-381 pairing-friendly elliptic curve construction, using the [blst](https://github.com/supranational/blst) library as backend.

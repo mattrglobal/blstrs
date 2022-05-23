@@ -1,6 +1,9 @@
 use group::prime::PrimeCurveAffine;
 
-use crate::{ext::MIN_IKM_LENGTH_BYTES, G2Affine, G2Projective, Scalar};
+use crate::{G2Affine, G2Projective, Scalar};
+
+/// Minimum ikm size in bytes.
+pub const MIN_IKM_LENGTH_BYTES: usize = 32;
 
 /// Computes a secret key from an IKM, as defined by
 /// https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-bls-signature-04#section-2.3

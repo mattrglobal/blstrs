@@ -12,7 +12,6 @@ compile_error!("blstrs is only supported on little endian architectures");
 #[macro_use]
 mod macros;
 
-mod ext;
 mod fp;
 mod fp12;
 mod fp2;
@@ -20,6 +19,7 @@ mod fp6;
 mod g1;
 mod g2;
 mod gt;
+mod key_gen;
 mod pairing;
 mod scalar;
 mod traits;
@@ -27,11 +27,10 @@ mod traits;
 pub use g1::{G1Affine, G1Compressed, G1Projective, G1Uncompressed};
 pub use g2::{G2Affine, G2Compressed, G2Prepared, G2Projective, G2Uncompressed};
 pub use gt::Gt;
+pub use key_gen::{generate_secret_key, sk_to_pk_in_g2, MIN_IKM_LENGTH_BYTES};
 pub use pairing::*;
 pub use scalar::Scalar;
 pub use traits::Compress;
-
-pub use ext::{key_gen::generate_secret_key, key_gen::sk_to_pk_in_g2, MIN_IKM_LENGTH_BYTES};
 
 #[cfg(feature = "serde")]
 mod serde_impl;

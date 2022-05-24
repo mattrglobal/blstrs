@@ -7,9 +7,7 @@ pub const MIN_IKM_LENGTH_BYTES: usize = 32;
 
 /// Computes a secret key from an IKM, as defined by
 /// https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-bls-signature-04#section-2.3
-/// Note this procedure does not follow
-/// https://identity.foundation/bbs-signature/draft-bbs-signatures.html#name-keygen
-pub fn generate_secret_key<T1, T2>(ikm: T1, key_info: T2) -> Option<Scalar>
+pub fn generate_sk<T1, T2>(ikm: T1, key_info: T2) -> Option<Scalar>
 where
     T1: AsRef<[u8]>,
     T2: AsRef<[u8]>,

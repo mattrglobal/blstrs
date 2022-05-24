@@ -54,7 +54,7 @@ mod tests {
         let seed = [0u8; MIN_IKM_LENGTH_BYTES];
         let key_info = [];
 
-        let sk = generate_secret_key(seed, key_info);
+        let sk = generate_sk(seed, key_info);
         let expected = [
             77, 18, 154, 25, 223, 134, 160, 245, 52, 91, 173, 76, 198, 242, 73, 236, 42, 129, 156,
             204, 51, 134, 137, 91, 235, 79, 125, 152, 179, 219, 98, 53,

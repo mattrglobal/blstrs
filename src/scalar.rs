@@ -204,6 +204,18 @@ impl Into<blst_scalar> for Scalar {
     }
 }
 
+#[allow(clippy::from_over_into)]
+impl Into<*const blst_scalar> for &Scalar {
+    fn into(self) -> *const blst_scalar {
+        let mut out = blst_scalar::default();
+        unsafe {
+            blst_scalar_from_fr(&mut out, &self.0);
+        }
+
+        &out
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct NotInFieldError;
 

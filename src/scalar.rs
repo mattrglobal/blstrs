@@ -587,6 +587,43 @@ impl Scalar {
         CtOption::new(Scalar(out), is_some)
     }
 
+    /// Converts a 512-bit little endian integer into
+    /// a `Scalar` by reducing by the modulus.
+    pub fn from_bytes_wide(bytes: &[u8; 64]) -> CtOption<Self> {
+        let mut raw = blst_scalar::default();
+        let mut out = blst_fr::default();
+        unsafe {
+            blst_scalar_from_le_bytes(&mut raw, bytes.as_ptr(), 64);
+        }
+        let is_some = Choice::from(unsafe { blst_scalar_fr_check(&raw) as u8 });
+        unsafe { blst_fr_from_scalar(&mut out, &raw) };
+
+        CtOption::new(Scalar(out), is_some)
+    }
+
+    /// Convert from the output of a KDF having 48 big-endian bytes
+    pub fn from_okm(bytes: &[u8; 48]) -> Self {
+        // 2^192
+        const F_2_192: Scalar = Scalar(blst_fr {
+            l: [
+                0x5947_6ebc_41b4_528f,
+                0xc5a3_0cb2_43fc_c152,
+                0x2b34_e639_40cc_bd72,
+                0x1e17_9025_ca24_7088,
+            ],
+        });
+
+        let mut d0_bytes = [0u8; 32];
+        d0_bytes[..24].copy_from_slice(bytes);
+        let d0 = Scalar::from_bytes_be(&d0_bytes).unwrap();
+
+        let mut d1_bytes = [0u8; 32];
+        d1_bytes[..24].copy_from_slice(&bytes[24..]);
+        let d1 = Scalar::from_bytes_be(&d1_bytes).unwrap();
+
+        (d0 * R2) * F_2_192 + d1 * R2
+    }
+
     #[allow(clippy::match_like_matches_macro)]
     pub fn is_quad_res(&self) -> Choice {
         match self.legendre() {

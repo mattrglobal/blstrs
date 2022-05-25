@@ -639,6 +639,30 @@ impl G1Projective {
         }
         res
     }
+
+    /// Multiscalar multiplication.
+    /// Copied from https://github.com/filecoin-project/blstrs/pull/37
+    /// TODO: remove it once upstream `blstrs` has these changes
+    pub fn multi_exp(points: &[Self], scalars: &[Scalar]) -> Self {
+        let n = if points.len() < scalars.len() {
+            points.len()
+        } else {
+            scalars.len()
+        };
+        let points =
+            unsafe { std::slice::from_raw_parts(points.as_ptr() as *const blst_p1, points.len()) };
+
+        let points = p1_affines::from(points);
+
+        let mut scalar_bytes: Vec<u8> = Vec::with_capacity(n * 32);
+        for a in scalars.iter().map(|s| s.to_bytes_le()) {
+            scalar_bytes.extend_from_slice(&a);
+        }
+
+        let res = points.mult(scalar_bytes.as_slice(), 255);
+
+        G1Projective(res)
+    }
 }
 
 impl Group for G1Projective {

@@ -601,27 +601,23 @@ impl Scalar {
         CtOption::new(Scalar(out), is_some)
     }
 
-    /// Convert from the output of a KDF having 48 big-endian bytes
-    pub fn from_okm(bytes: &[u8; 48]) -> Self {
-        // 2^192
-        const F_2_192: Scalar = Scalar(blst_fr {
-            l: [
-                0x5947_6ebc_41b4_528f,
-                0xc5a3_0cb2_43fc_c152,
-                0x2b34_e639_40cc_bd72,
-                0x1e17_9025_ca24_7088,
-            ],
-        });
+    /// Hash an arbitrary data to Scalar as described in belwo IETF spec
+    /// <https://www.ietf.org/archive/id/draft-irtf-cfrg-hash-to-curve-13.html#name-hashing-to-a-finite-field>
+    pub fn hash_to<T1, T2>(msg: T1, dst: T2) -> CtOption<Self>
+    where
+        T1: AsRef<[u8]>,
+        T2: AsRef<[u8]>,
+    {
+        let mut out = blst_fr::default();
+        let raw = match blst_scalar::hash_to(msg.as_ref(), dst.as_ref()) {
+            Some(raw) => raw,
+            None => return CtOption::new(Scalar(out), Choice::from(0u8)),
+        };
 
-        let mut d0_bytes = [0u8; 32];
-        d0_bytes[..24].copy_from_slice(bytes);
-        let d0 = Scalar::from_bytes_be(&d0_bytes).unwrap();
+        let is_some = Choice::from(unsafe { blst_scalar_fr_check(&raw) as u8 });
+        unsafe { blst_fr_from_scalar(&mut out, &raw) };
 
-        let mut d1_bytes = [0u8; 32];
-        d1_bytes[..24].copy_from_slice(&bytes[24..]);
-        let d1 = Scalar::from_bytes_be(&d1_bytes).unwrap();
-
-        (d0 * R2) * F_2_192 + d1 * R2
+        CtOption::new(Scalar(out), is_some)
     }
 
     #[allow(clippy::match_like_matches_macro)]

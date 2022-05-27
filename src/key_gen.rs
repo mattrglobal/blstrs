@@ -34,7 +34,7 @@ where
 }
 
 /// Generate a public key in G2 from a secret key, as defined by
-/// https://identity.foundation/bbs-signature/draft-bbs-signatures.html#name-sktopk
+/// <https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-bls-signature-04#section-2.4>
 pub fn sk_to_pk_in_g2(s: &Scalar) -> G2Projective {
     let mut pk = G2Affine::identity();
 

@@ -640,11 +640,6 @@ impl G1Projective {
         res
     }
 
-    /// Use a random oracle to map a value to a curve point
-    pub fn hash<X>(_msg: &[u8], _dst: &[u8]) -> Self {
-        todo!()
-    }
-
     /// Multiscalar multiplication.
     /// Copied from https://github.com/filecoin-project/blstrs/pull/37
     /// TODO: remove it once upstream `blstrs` has these changes

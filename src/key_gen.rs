@@ -1,3 +1,4 @@
+use blst::blst_scalar;
 use group::prime::PrimeCurveAffine;
 
 use crate::{G2Affine, G2Projective, Scalar};
@@ -37,9 +38,10 @@ where
 /// <https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-bls-signature-04#section-2.4>
 pub fn sk_to_pk_in_g2(s: &Scalar) -> G2Projective {
     let mut pk = G2Affine::identity();
+    let sc: blst_scalar = Scalar::into(*s);
 
     unsafe {
-        blst::blst_sk_to_pk2_in_g2(std::ptr::null_mut(), pk.as_mut(), s.into());
+        blst::blst_sk_to_pk2_in_g2(std::ptr::null_mut(), pk.as_mut(), &sc);
     }
 
     pk.into()
@@ -47,6 +49,8 @@ pub fn sk_to_pk_in_g2(s: &Scalar) -> G2Projective {
 
 #[cfg(test)]
 mod tests {
+    use group::Group;
+
     use super::*;
 
     #[test]
@@ -73,5 +77,6 @@ mod tests {
         let pk = sk_to_pk_in_g2(&sk);
 
         assert_eq!(1, pk.is_on_curve().unwrap_u8());
+        assert_eq!(0, pk.is_identity().unwrap_u8());
     }
 }

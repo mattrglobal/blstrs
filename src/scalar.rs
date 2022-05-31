@@ -601,7 +601,7 @@ impl Scalar {
         CtOption::new(Scalar(out), is_some)
     }
 
-    /// Hash an arbitrary data to Scalar as described in belwo IETF spec
+    /// Hash an arbitrary data to Scalar as described in the below IETF spec
     /// <https://www.ietf.org/archive/id/draft-irtf-cfrg-hash-to-curve-13.html#name-hashing-to-a-finite-field>
     pub fn hash_to<T1, T2>(msg: T1, dst: T2) -> CtOption<Self>
     where

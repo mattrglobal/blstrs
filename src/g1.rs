@@ -649,6 +649,13 @@ impl G1Projective {
         } else {
             scalars.len()
         };
+
+        // there seems some corner case bug when multiplication of single elements required
+        // TEMP FIX: for now just return by usual multiplication instead of using Pippenger method APIs
+        if n == 1usize {
+            return points[0] * scalars[0];
+        }
+
         let points =
             unsafe { std::slice::from_raw_parts(points.as_ptr() as *const blst_p1, points.len()) };
 

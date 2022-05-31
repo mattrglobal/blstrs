@@ -50,7 +50,6 @@ pub fn sk_to_pk_in_g2(s: &Scalar) -> G2Projective {
 #[cfg(test)]
 mod tests {
     use group::Group;
-
     use super::*;
 
     #[test]

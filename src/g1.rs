@@ -14,7 +14,7 @@ use group::{
     Curve, Group, GroupEncoding, UncompressedEncoding, WnafGroup,
 };
 use rand_core::RngCore;
-use subtle::{Choice, ConditionallySelectable, CtOption};
+use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
 
 use crate::{fp::Fp, Bls12, Engine, G2Affine, Gt, PairingCurveAffine, Scalar};
 
@@ -465,6 +465,12 @@ impl fmt::Display for G1Projective {
     }
 }
 
+impl Default for G1Projective {
+    fn default() -> G1Projective {
+        G1Projective::identity()
+    }
+}
+
 impl AsRef<blst_p1> for G1Projective {
     fn as_ref(&self) -> &blst_p1 {
         &self.0
@@ -490,6 +496,16 @@ impl From<&G1Affine> for G1Projective {
 impl From<G1Affine> for G1Projective {
     fn from(p: G1Affine) -> G1Projective {
         G1Projective::from(&p)
+    }
+}
+
+impl ConstantTimeEq for G1Projective {
+    fn ct_eq(&self, other: &Self) -> Choice {
+        let self_is_zero: bool = self.is_identity().into();
+        let other_is_zero: bool = other.is_identity().into();
+        let result = (self_is_zero && other_is_zero)
+            || (!self_is_zero && !other_is_zero && unsafe { blst_p1_is_equal(&self.0, &other.0) });
+        Choice::from(result as u8)
     }
 }
 
@@ -632,6 +648,7 @@ impl G1Projective {
         } else {
             scalars.len()
         };
+
         let points =
             unsafe { std::slice::from_raw_parts(points.as_ptr() as *const blst_p1, points.len()) };
 

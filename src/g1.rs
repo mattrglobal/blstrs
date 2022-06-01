@@ -14,7 +14,7 @@ use group::{
     Curve, Group, GroupEncoding, UncompressedEncoding, WnafGroup,
 };
 use rand_core::RngCore;
-use subtle::{Choice, ConditionallySelectable, CtOption};
+use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
 
 use crate::{fp::Fp, Bls12, Engine, G2Affine, Gt, PairingCurveAffine, Scalar};
 
@@ -465,6 +465,12 @@ impl fmt::Display for G1Projective {
     }
 }
 
+impl Default for G1Projective {
+    fn default() -> G1Projective {
+        G1Projective::identity()
+    }
+}
+
 impl AsRef<blst_p1> for G1Projective {
     fn as_ref(&self) -> &blst_p1 {
         &self.0
@@ -490,6 +496,16 @@ impl From<&G1Affine> for G1Projective {
 impl From<G1Affine> for G1Projective {
     fn from(p: G1Affine) -> G1Projective {
         G1Projective::from(&p)
+    }
+}
+
+impl ConstantTimeEq for G1Projective {
+    fn ct_eq(&self, other: &Self) -> Choice {
+        let self_is_zero: bool = self.is_identity().into();
+        let other_is_zero: bool = other.is_identity().into();
+        let result = (self_is_zero && other_is_zero)
+            || (!self_is_zero && !other_is_zero && unsafe { blst_p1_is_equal(&self.0, &other.0) });
+        Choice::from(result as u8)
     }
 }
 
@@ -622,6 +638,37 @@ impl G1Projective {
             );
         }
         res
+    }
+
+    /// Multiscalar multiplication.
+    /// Copied from https://github.com/filecoin-project/blstrs/pull/37
+    /// TODO: remove it once upstream `blstrs` has these changes
+    pub fn multi_exp(points: &[Self], scalars: &[Scalar]) -> Self {
+        let n = if points.len() < scalars.len() {
+            points.len()
+        } else {
+            scalars.len()
+        };
+
+        // there seems some corner case bug when multiplication of single elements required
+        // TEMP FIX: for now just return by usual multiplication instead of using Pippenger method APIs
+        if n == 1usize {
+            return points[0] * scalars[0];
+        }
+
+        let points =
+            unsafe { std::slice::from_raw_parts(points.as_ptr() as *const blst_p1, points.len()) };
+
+        let points = p1_affines::from(points);
+
+        let mut scalar_bytes: Vec<u8> = Vec::with_capacity(n * 32);
+        for a in scalars.iter().map(|s| s.to_bytes_le()) {
+            scalar_bytes.extend_from_slice(&a);
+        }
+
+        let res = points.mult(scalar_bytes.as_slice(), 255);
+
+        G1Projective(res)
     }
 }
 

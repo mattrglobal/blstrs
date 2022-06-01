@@ -587,6 +587,39 @@ impl Scalar {
         CtOption::new(Scalar(out), is_some)
     }
 
+    /// Converts a 512-bit little endian integer into
+    /// a `Scalar` by reducing by the modulus.
+    pub fn from_bytes_wide(bytes: &[u8; 64]) -> CtOption<Self> {
+        let mut raw = blst_scalar::default();
+        let mut out = blst_fr::default();
+        unsafe {
+            blst_scalar_from_le_bytes(&mut raw, bytes.as_ptr(), 64);
+        }
+        let is_some = Choice::from(unsafe { blst_scalar_fr_check(&raw) as u8 });
+        unsafe { blst_fr_from_scalar(&mut out, &raw) };
+
+        CtOption::new(Scalar(out), is_some)
+    }
+
+    /// Hash an arbitrary data to Scalar as described in the below IETF spec
+    /// <https://www.ietf.org/archive/id/draft-irtf-cfrg-hash-to-curve-13.html#name-hashing-to-a-finite-field>
+    pub fn hash_to<T1, T2>(msg: T1, dst: T2) -> CtOption<Self>
+    where
+        T1: AsRef<[u8]>,
+        T2: AsRef<[u8]>,
+    {
+        let mut out = blst_fr::default();
+        let raw = match blst_scalar::hash_to(msg.as_ref(), dst.as_ref()) {
+            Some(raw) => raw,
+            None => return CtOption::new(Scalar(out), Choice::from(0u8)),
+        };
+
+        let is_some = Choice::from(unsafe { blst_scalar_fr_check(&raw) as u8 });
+        unsafe { blst_fr_from_scalar(&mut out, &raw) };
+
+        CtOption::new(Scalar(out), is_some)
+    }
+
     #[allow(clippy::match_like_matches_macro)]
     pub fn is_quad_res(&self) -> Choice {
         match self.legendre() {

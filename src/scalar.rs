@@ -615,11 +615,25 @@ impl Scalar {
 
     /// Converts a 512-bit little endian integer into
     /// a `Scalar` by reducing by the modulus.
-    pub fn from_bytes_wide(bytes: &[u8; 64]) -> CtOption<Self> {
+    pub fn from_bytes_le_wide(bytes: &[u8; 64]) -> CtOption<Self> {
         let mut raw = blst_scalar::default();
         let mut out = blst_fr::default();
         unsafe {
             blst_scalar_from_le_bytes(&mut raw, bytes.as_ptr(), 64);
+        }
+        let is_some = Choice::from(unsafe { blst_scalar_fr_check(&raw) as u8 });
+        unsafe { blst_fr_from_scalar(&mut out, &raw) };
+
+        CtOption::new(Scalar(out), is_some)
+    }
+
+    /// Converts a 512-bit big endian integer into
+    /// a `Scalar` by reducing by the modulus.
+    pub fn from_bytes_be_wide(bytes: &[u8; 64]) -> CtOption<Self> {
+        let mut raw = blst_scalar::default();
+        let mut out = blst_fr::default();
+        unsafe {
+            blst_scalar_from_be_bytes(&mut raw, bytes.as_ptr(), 64);
         }
         let is_some = Choice::from(unsafe { blst_scalar_fr_check(&raw) as u8 });
         unsafe { blst_fr_from_scalar(&mut out, &raw) };

@@ -1,5 +1,6 @@
 //! Implementation of hash-to-curve for the G1 group.
 
+use ff::Field;
 use subtle::{Choice, ConditionallyNegatable, ConditionallySelectable, ConstantTimeEq};
 
 use super::chain::chain_pm3div4;

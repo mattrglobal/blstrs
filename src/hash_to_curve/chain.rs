@@ -4,6 +4,8 @@
 
 use core::ops::MulAssign;
 
+use ff::Field;
+
 use crate::{fp::Fp, fp2::Fp2};
 
 macro_rules! square {

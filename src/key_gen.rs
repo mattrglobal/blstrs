@@ -8,10 +8,9 @@ pub const MIN_IKM_LENGTH_BYTES: usize = 32;
 
 /// Computes a secret key from an IKM, as defined by
 /// https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-bls-signature-04#section-2.3
-pub fn generate_sk<T1, T2>(ikm: T1, key_info: T2) -> Option<Scalar>
+pub fn generate_sk<T>(ikm: T, key_info: T) -> Option<Scalar>
 where
-    T1: AsRef<[u8]>,
-    T2: AsRef<[u8]>,
+    T: AsRef<[u8]>,
 {
     use core::convert::TryInto;
     let ikm = ikm.as_ref();
@@ -54,10 +53,10 @@ mod tests {
 
     #[test]
     fn test_generate_sk() {
-        let seed = [0u8; MIN_IKM_LENGTH_BYTES];
+        let ikm = [0u8; MIN_IKM_LENGTH_BYTES];
         let key_info = [];
 
-        let sk = generate_sk(seed, key_info);
+        let sk = generate_sk(ikm.as_ref(), key_info.as_ref());
         let expected = [
             77, 18, 154, 25, 223, 134, 160, 245, 52, 91, 173, 76, 198, 242, 73, 236, 42, 129, 156,
             204, 51, 134, 137, 91, 235, 79, 125, 152, 179, 219, 98, 53,

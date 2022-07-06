@@ -664,6 +664,36 @@ impl G1Projective {
 
         G1Projective(res)
     }
+
+    /// Multiply `self` by `crate::BLS_X`, using double and add.
+    #[cfg(feature = "hash_to_curve")]
+    fn mul_by_x(&self) -> G1Projective {
+        let mut xself = G1Projective::identity();
+        // NOTE: in BLS12-381 we can just skip the first bit.
+        let mut x = crate::BLS_X >> 1;
+        let mut tmp = *self;
+        while x != 0 {
+            tmp = tmp.double();
+
+            if x % 2 == 1 {
+                xself += tmp;
+            }
+            x >>= 1;
+        }
+        // finally, flip the sign
+        if crate::BLS_X_IS_NEGATIVE {
+            xself = -xself;
+        }
+        xself
+    }
+
+    /// Multiplies by $(1 - z)$, where $z$ is the parameter of BLS12-381, which
+    /// [suffices to clear](https://ia.cr/2019/403) the cofactor and map
+    /// elliptic curve points to elements of $\mathbb{G}\_1$.
+    #[cfg(feature = "hash_to_curve")]
+    pub fn clear_cofactor(&self) -> G1Projective {
+        self - self.mul_by_x()
+    }
 }
 
 impl Group for G1Projective {

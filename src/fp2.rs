@@ -191,6 +191,13 @@ impl Fp2 {
         Fp2(blst_fp2 { fp: [c0.0, c1.0] })
     }
 
+    #[inline]
+    pub const fn one() -> Self {
+        Fp2(blst_fp2 {
+            fp: [Fp::one().0, Fp::zero().0],
+        })
+    }
+
     /// Multiplies `self` with `3`, returning the result.
     pub fn mul3(&self) -> Self {
         let mut out = *self;
@@ -239,6 +246,21 @@ impl Fp2 {
         let mut c1 = self.c1();
         c1 *= &FROBENIUS_COEFF_FP2_C1[power % 2];
         self.0.fp[1] = c1.0;
+    }
+
+    /// Raises this element to p.
+    #[inline(always)]
+    #[cfg(feature = "hash_to_curve")]
+    pub fn frobenius_map_by_conjugation(&self) -> Self {
+        // This is always just a conjugation. If you're curious why, here's
+        // an article about it: https://alicebob.cryptoland.net/the-frobenius-endomorphism-with-finite-fields/
+        self.conjugate()
+    }
+
+    #[inline(always)]
+    #[cfg(feature = "hash_to_curve")]
+    pub fn conjugate(&self) -> Self {
+        Fp2::new(self.c0(), -self.c1())
     }
 
     pub fn is_quad_res(&self) -> bool {

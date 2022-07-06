@@ -590,6 +590,116 @@ impl G2Projective {
         }
         res
     }
+
+    #[cfg(feature = "hash_to_curve")]
+    fn psi(&self) -> G2Projective {
+        use crate::fp::Fp;
+
+        // 1 / ((u+1) ^ ((q-1)/3))
+        let psi_coeff_x = Fp2::new(
+            Fp::zero(),
+            Fp::from_raw_unchecked([
+                0x890dc9e4867545c3,
+                0x2af322533285a5d5,
+                0x50880866309b7e2c,
+                0xa20d1b8c7e881024,
+                0x14e4f04fe2db9068,
+                0x14e56d3f1564853a,
+            ]),
+        );
+        // 1 / ((u+1) ^ (p-1)/2)
+        let psi_coeff_y = Fp2::new(
+            Fp::from_raw_unchecked([
+                0x3e2f585da55c9ad1,
+                0x4294213d86c18183,
+                0x382844c88b623732,
+                0x92ad2afd19103e18,
+                0x1d794e4fac7cf0b9,
+                0x0bd592fc7d825ec8,
+            ]),
+            Fp::from_raw_unchecked([
+                0x7bcfa7a25aa30fda,
+                0xdc17dec12a927e7c,
+                0x2f088dd86b4ebef1,
+                0xd1ca2087da74d4a7,
+                0x2da2596696cebc1d,
+                0x0e2b7eedbbfd87d2,
+            ]),
+        );
+
+        G2Projective::from_raw_unchecked(
+            // x = frobenius(x)/((u+1)^((p-1)/3))
+            self.x().frobenius_map_by_conjugation() * psi_coeff_x,
+            // y = frobenius(y)/(u+1)^((p-1)/2)
+            self.y().frobenius_map_by_conjugation() * psi_coeff_y,
+            // z = frobenius(z)
+            self.z().frobenius_map_by_conjugation(),
+        )
+    }
+
+    #[cfg(feature = "hash_to_curve")]
+    fn psi2(&self) -> G2Projective {
+        use crate::fp::Fp;
+
+        // 1 / 2 ^ ((q-1)/3)
+        let psi2_coeff_x = Fp2::new(
+            Fp::from_raw_unchecked([
+                0xcd03c9e48671f071,
+                0x5dab22461fcda5d2,
+                0x587042afd3851b95,
+                0x8eb60ebe01bacb9e,
+                0x03f97d6e83d050d2,
+                0x18f0206554638741,
+            ]),
+            Fp::zero(),
+        );
+
+        G2Projective::from_raw_unchecked(
+            // x = frobenius^2(x)/2^((p-1)/3); note that q^2 is the order of the field.
+            self.x() * psi2_coeff_x,
+            // y = -frobenius^2(y); note that q^2 is the order of the field.
+            self.y().neg(),
+            // z = z
+            self.z(),
+        )
+    }
+
+    /// Multiply `self` by `crate::BLS_X`, using double and add.
+    #[cfg(feature = "hash_to_curve")]
+    fn mul_by_x(&self) -> G2Projective {
+        let mut xself = G2Projective::identity();
+        // NOTE: in BLS12-381 we can just skip the first bit.
+        let mut x = crate::BLS_X >> 1;
+        let mut acc = *self;
+        while x != 0 {
+            acc = acc.double();
+            if x % 2 == 1 {
+                xself += acc;
+            }
+            x >>= 1;
+        }
+        // finally, flip the sign
+        if crate::BLS_X_IS_NEGATIVE {
+            xself = -xself;
+        }
+        xself
+    }
+
+    /// Clears the cofactor, using [Budroni-Pintore](https://ia.cr/2017/419).
+    /// This is equivalent to multiplying by $h\_\textrm{eff} = 3(z^2 - 1) \cdot
+    /// h_2$, where $h_2$ is the cofactor of $\mathbb{G}\_2$ and $z$ is the
+    /// parameter of BLS12-381.
+    #[cfg(feature = "hash_to_curve")]
+    pub fn clear_cofactor(&self) -> G2Projective {
+        let t1 = self.mul_by_x(); // [x] P
+        let t2 = self.psi(); // psi(P)
+
+        self.double().psi2() // psi^2(2P)
+            + (t1 + t2).mul_by_x() // psi^2(2P) + [x^2] P + [x] psi(P)
+            - t1 // psi^2(2P) + [x^2 - x] P + [x] psi(P)
+            - t2 // psi^2(2P) + [x^2 - x] P + [x - 1] psi(P)
+            - self // psi^2(2P) + [x^2 - x - 1] P + [x - 1] psi(P)
+    }
 }
 
 impl Group for G2Projective {
@@ -797,7 +907,6 @@ mod tests {
     use super::*;
 
     use crate::fp::Fp;
-    use ff::Field;
     use rand_core::SeedableRng;
     use rand_xorshift::XorShiftRng;
 

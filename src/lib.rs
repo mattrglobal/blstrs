@@ -50,6 +50,15 @@ use pairing_lib::{Engine, MultiMillerLoop, PairingCurveAffine};
 #[cfg(feature = "hash_to_curve")]
 pub(crate) use digest::generic_array;
 
+// The BLS parameter x for BLS12-381 is -0xd201000000010000
+#[cfg(feature = "hash_to_curve")]
+const BLS_X: u64 = 0xd201_0000_0001_0000;
+#[cfg(feature = "hash_to_curve")]
+const BLS_X_IS_NEGATIVE: bool = true;
+
+#[cfg(feature = "hash_to_curve")]
+mod util;
+
 #[cfg(feature = "hash_to_curve")]
 pub mod hash_to_curve;
 

@@ -517,10 +517,10 @@ impl HashToField for Fp {
 
         let mut bs = [0u8; 48];
         bs[16..].copy_from_slice(&okm[..32]);
-        let db = Fp::from_bytes(&bs).unwrap();
+        let db = Fp::from_bytes_be(&bs).unwrap();
 
         bs[16..].copy_from_slice(&okm[32..]);
-        let da = Fp::from_bytes(&bs).unwrap();
+        let da = Fp::from_bytes_be(&bs).unwrap();
 
         db * F_2_256 + da
     }
@@ -531,9 +531,20 @@ impl Sgn0 for Fp {
         // Turn into canonical form by computing
         // (a.R) / R = a
         let tmp = Fp::montgomery_reduce(
-            self.0[0], self.0[1], self.0[2], self.0[3], self.0[4], self.0[5], 0, 0, 0, 0, 0, 0,
+            self.0.l[0],
+            self.0.l[1],
+            self.0.l[2],
+            self.0.l[3],
+            self.0.l[4],
+            self.0.l[5],
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
         );
-        Choice::from((tmp.0[0] & 1) as u8)
+        Choice::from((tmp.0.l[0] & 1) as u8)
     }
 }
 
@@ -573,11 +584,7 @@ fn map_to_curve_simple_swu(u: &Fp) -> G1Projective {
     // ensure sign of y and sign of u agree
     y.conditional_negate(y.sgn0() ^ u.sgn0());
 
-    G1Projective {
-        x: x_num,
-        y: y * x_den,
-        z: x_den,
-    }
+    G1Projective::from_raw_unchecked(x_num, y * x_den, x_den)
 }
 
 /// Maps an iso-G1 point to a G1 point.
@@ -585,7 +592,7 @@ fn iso_map(u: &G1Projective) -> G1Projective {
     const COEFFS: [&[Fp]; 4] = [&ISO11_XNUM, &ISO11_XDEN, &ISO11_YNUM, &ISO11_YDEN];
 
     // unpack input point
-    let G1Projective { x, y, z } = *u;
+    let (x, y, z) = (u.x(), u.y(), u.z());
 
     // xnum, xden, ynum, yden
     let mut mapvals = [Fp::zero(); 4];
@@ -617,11 +624,11 @@ fn iso_map(u: &G1Projective) -> G1Projective {
     mapvals[2] *= y;
     mapvals[3] *= z;
 
-    G1Projective {
-        x: mapvals[0] * mapvals[3], // xnum * yden,
-        y: mapvals[2] * mapvals[1], // ynum * xden,
-        z: mapvals[1] * mapvals[3], // xden * yden
-    }
+    G1Projective::from_raw_unchecked(
+        mapvals[0] * mapvals[3], // xnum * yden
+        mapvals[2] * mapvals[1], // ynum * xden
+        mapvals[1] * mapvals[3], // xden * yden
+    )
 }
 
 impl MapToCurve for G1Projective {
@@ -641,16 +648,15 @@ impl MapToCurve for G1Projective {
 fn check_g1_prime(pt: &G1Projective) -> bool {
     // (X : Y : Z)==(X/Z, Y/Z) is on E': y^2 = x^3 + A * x + B.
     // y^2 z = (x^3) + A (x z^2) + B z^3
-    let zsq = pt.z.square();
-    (pt.y.square() * pt.z)
-        == (pt.x.square() * pt.x + SSWU_ELLP_A * pt.x * zsq + SSWU_ELLP_B * zsq * pt.z)
+    let zsq = pt.z().square();
+    (pt.y().square() * pt.z())
+        == (pt.x().square() * pt.x() + SSWU_ELLP_A * pt.x() * zsq + SSWU_ELLP_B * zsq * pt.z())
 }
 
 #[test]
 fn test_simple_swu_expected() {
     // exceptional case: zero
     let p = map_to_curve_simple_swu(&Fp::zero());
-    let G1Projective { x, y, z } = &p;
     let xo = Fp::from_raw_unchecked([
         0xfb99_6971_fe22_a1e0,
         0x9aa9_3eb3_5b74_2d6f,
@@ -675,9 +681,9 @@ fn test_simple_swu_expected() {
         0x1668_ddfa_462b_f6b6,
         0x0096_0e2e_d1cf_294c,
     ]);
-    assert_eq!(x, &xo);
-    assert_eq!(y, &yo);
-    assert_eq!(z, &zo);
+    assert_eq!(&p.x(), &xo);
+    assert_eq!(&p.y(), &yo);
+    assert_eq!(&p.z(), &zo);
     assert!(check_g1_prime(&p));
 
     // exceptional case: sqrt(-1/XI) (positive)
@@ -690,10 +696,9 @@ fn test_simple_swu_expected() {
         0x19cb_022f_8ee9_d73b,
     ]);
     let p = map_to_curve_simple_swu(&excp);
-    let G1Projective { x, y, z } = &p;
-    assert_eq!(x, &xo);
-    assert_eq!(y, &yo);
-    assert_eq!(z, &zo);
+    assert_eq!(&p.x(), &xo);
+    assert_eq!(&p.y(), &yo);
+    assert_eq!(&p.z(), &zo);
     assert!(check_g1_prime(&p));
 
     // exceptional case: sqrt(-1/XI) (negative)
@@ -706,11 +711,10 @@ fn test_simple_swu_expected() {
         0x0036_0fba_aa96_0f5e,
     ]);
     let p = map_to_curve_simple_swu(&excp);
-    let G1Projective { x, y, z } = &p;
     let myo = -yo;
-    assert_eq!(x, &xo);
-    assert_eq!(y, &myo);
-    assert_eq!(z, &zo);
+    assert_eq!(&p.x(), &xo);
+    assert_eq!(&p.y(), &myo);
+    assert_eq!(&p.z(), &zo);
     assert!(check_g1_prime(&p));
 
     let u = Fp::from_raw_unchecked([
@@ -746,10 +750,9 @@ fn test_simple_swu_expected() {
         0x182b_57ed_6b99_f0a1,
     ]);
     let p = map_to_curve_simple_swu(&u);
-    let G1Projective { x, y, z } = &p;
-    assert_eq!(x, &xo);
-    assert_eq!(y, &yo);
-    assert_eq!(z, &zo);
+    assert_eq!(&p.x(), &xo);
+    assert_eq!(&p.y(), &yo);
+    assert_eq!(&p.z(), &zo);
     assert!(check_g1_prime(&p));
 }
 

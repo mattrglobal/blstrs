@@ -3,7 +3,7 @@
 
 use core::{
     cmp,
-    convert::{TryFrom, TryInto},
+    convert::TryInto,
     fmt,
     ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign},
 };
@@ -97,16 +97,6 @@ const R2: Scalar = Scalar(blst_fr {
         0x2b6c_edcb_8792_5c23,
         0x05d3_1496_7254_398f,
         0x0748_d9d9_9f59_ff11,
-    ],
-});
-
-/// R^3 = 2^768 mod q
-const R3: Scalar = Scalar(blst_fr {
-    l: [
-        0xc62c_1807_439b_73af,
-        0x1b3e_0d18_8cf0_6990,
-        0x73d1_3c71_c7b5_f418,
-        0x6e2a_5bb9_c8db_33e9,
     ],
 });
 
@@ -597,54 +587,18 @@ impl Scalar {
         CtOption::new(Scalar(out), is_some)
     }
 
-    /// Converts a 512-bit little endian integer into
-    /// a `Scalar` by reducing by the modulus.
-    pub fn from_bytes_wide(bytes: &[u8; 64]) -> Scalar {
-        Scalar::from_u512([
-            u64::from_le_bytes(<[u8; 8]>::try_from(&bytes[0..8]).unwrap()),
-            u64::from_le_bytes(<[u8; 8]>::try_from(&bytes[8..16]).unwrap()),
-            u64::from_le_bytes(<[u8; 8]>::try_from(&bytes[16..24]).unwrap()),
-            u64::from_le_bytes(<[u8; 8]>::try_from(&bytes[24..32]).unwrap()),
-            u64::from_le_bytes(<[u8; 8]>::try_from(&bytes[32..40]).unwrap()),
-            u64::from_le_bytes(<[u8; 8]>::try_from(&bytes[40..48]).unwrap()),
-            u64::from_le_bytes(<[u8; 8]>::try_from(&bytes[48..56]).unwrap()),
-            u64::from_le_bytes(<[u8; 8]>::try_from(&bytes[56..64]).unwrap()),
-        ])
-    }
-
-    fn from_u512(limbs: [u64; 8]) -> Scalar {
-        // We reduce an arbitrary 512-bit number by decomposing it into two 256-bit digits
-        // with the higher bits multiplied by 2^256. Thus, we perform two reductions
-        //
-        // 1. the lower bits are multiplied by R^2, as normal
-        // 2. the upper bits are multiplied by R^2 * 2^256 = R^3
-        //
-        // and computing their sum in the field. It remains to see that arbitrary 256-bit
-        // numbers can be placed into Montgomery form safely using the reduction. The
-        // reduction works so long as the product is less than R=2^256 multiplied by
-        // the modulus. This holds because for any `c` smaller than the modulus, we have
-        // that (2^256 - 1)*c is an acceptable product for the reduction. Therefore, the
-        // reduction always works so long as `c` is in the field; in this case it is either the
-        // constant `R2` or `R3`.
-        let d0 = Scalar(blst_fr {
-            l: [limbs[0], limbs[1], limbs[2], limbs[3]],
-        });
-        let d1 = Scalar(blst_fr {
-            l: [limbs[4], limbs[5], limbs[6], limbs[7]],
-        });
-        // Convert to Montgomery form
-        d0 * R2 + d1 * R3
-    }
-
     /// Converts an arbitrary length big-endian byte sequence into a `Scalar` by reducing by the modulus r.
-    pub fn from_be_bytes_wide_mod_r(bytes: &[u8; 64]) -> Self {
+    pub fn from_wide_bytes_be_mod_r(bytes: &[u8; 64]) -> CtOption<Self> {
         let mut raw = blst_scalar::default();
         let mut out = blst_fr::default();
         unsafe {
             blst_scalar_from_be_bytes(&mut raw, bytes.as_ptr(), 64);
+        }
+        let is_some = Choice::from(unsafe { blst_scalar_fr_check(&raw) as u8 });
+        unsafe {
             blst_fr_from_scalar(&mut out, &raw);
         }
-        Scalar(out)
+        CtOption::new(Scalar(out), is_some)
     }
 
     /// Hash an arbitrary data to Scalar as described in the below IETF spec

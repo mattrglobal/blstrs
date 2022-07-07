@@ -587,7 +587,7 @@ impl Scalar {
         CtOption::new(Scalar(out), is_some)
     }
 
-    /// Converts an arbitrary length big-endian byte sequence into a `Scalar` by reducing by the modulus r.
+    /// Converts a 512-bit big-endian bit sequence into a `Scalar` by reducing by the modulus r.
     pub fn from_wide_bytes_be_mod_r(bytes: &[u8; 64]) -> CtOption<Self> {
         let mut raw = blst_scalar::default();
         let mut out = blst_fr::default();

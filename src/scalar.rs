@@ -587,18 +587,16 @@ impl Scalar {
         CtOption::new(Scalar(out), is_some)
     }
 
-    /// Converts a 512-bit big-endian bit sequence into a `Scalar` by reducing by the modulus r.
-    pub fn from_wide_bytes_be_mod_r(bytes: &[u8; 64]) -> CtOption<Self> {
+    /// Converts a 512-bit big-endian bit sequence into a `Scalar` by reducing the bits by modulus r.
+    /// It may return a zero `Scalar`.
+    pub fn from_wide_bytes_be_mod_r(bytes: &[u8; 64]) -> Self {
         let mut raw = blst_scalar::default();
         let mut out = blst_fr::default();
         unsafe {
             blst_scalar_from_be_bytes(&mut raw, bytes.as_ptr(), 64);
-        }
-        let is_some = Choice::from(unsafe { blst_scalar_fr_check(&raw) as u8 });
-        unsafe {
             blst_fr_from_scalar(&mut out, &raw);
         }
-        CtOption::new(Scalar(out), is_some)
+        Scalar(out)
     }
 
     #[allow(clippy::match_like_matches_macro)]

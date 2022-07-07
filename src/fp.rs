@@ -2,6 +2,7 @@
 //! where `p = 0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab`
 
 use blst::*;
+use digest::{consts::U64, generic_array::GenericArray};
 
 use core::{
     cmp, fmt,
@@ -11,7 +12,7 @@ use ff::Field;
 use rand_core::RngCore;
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
 
-use crate::fp2::Fp2;
+use crate::{fp2::Fp2, hash_to_curve::HashToField};
 
 // Little-endian non-Montgomery form.
 #[allow(dead_code)]
@@ -30,9 +31,6 @@ const MODULUS_REPR: [u8; 48] = [
     0x24, 0xf6, 0xb0, 0xf6, 0xa0, 0xd2, 0x30, 0x67, 0xbf, 0x12, 0x85, 0xf3, 0x84, 0x4b, 0x77, 0x64,
     0xd7, 0xac, 0x4b, 0x43, 0xb6, 0xa7, 0x1b, 0x4b, 0x9a, 0xe6, 0x7f, 0x39, 0xea, 0x11, 0x01, 0x1a,
 ];
-
-/// INV = -(p^{-1} mod 2^64) mod 2^64
-const INV: u64 = 0x89f3_fffc_fffc_fffd;
 
 const ZERO: Fp = Fp(blst_fp {
     l: [0, 0, 0, 0, 0, 0],
@@ -667,110 +665,30 @@ impl Fp {
     pub fn square_assign(&mut self) {
         unsafe { blst_fp_sqr(&mut self.0, &self.0) };
     }
+}
 
-    #[cfg(feature = "hash_to_curve")]
-    #[inline]
-    const fn subtract_p(&self) -> Fp {
-        use crate::util::sbb;
+impl HashToField for Fp {
+    // ceil(log2(p)) = 381, m = 1, k = 128.
+    type InputLength = U64;
 
-        let (r0, borrow) = sbb(self.0.l[0], MODULUS[0], 0);
-        let (r1, borrow) = sbb(self.0.l[1], MODULUS[1], borrow);
-        let (r2, borrow) = sbb(self.0.l[2], MODULUS[2], borrow);
-        let (r3, borrow) = sbb(self.0.l[3], MODULUS[3], borrow);
-        let (r4, borrow) = sbb(self.0.l[4], MODULUS[4], borrow);
-        let (r5, borrow) = sbb(self.0.l[5], MODULUS[5], borrow);
+    fn from_okm(okm: &GenericArray<u8, U64>) -> Fp {
+        const F_2_256: Fp = Fp::from_raw_unchecked([
+            0x075b_3cd7_c5ce_820f,
+            0x3ec6_ba62_1c3e_db0b,
+            0x168a_13d8_2bff_6bce,
+            0x8766_3c4b_f8c4_49d2,
+            0x15f3_4c83_ddc8_d830,
+            0x0f96_28b4_9caa_2e85,
+        ]);
 
-        // If underflow occurred on the final limb, borrow = 0xfff...fff, otherwise
-        // borrow = 0x000...000. Thus, we use it as a mask!
-        let r0 = (self.0.l[0] & borrow) | (r0 & !borrow);
-        let r1 = (self.0.l[1] & borrow) | (r1 & !borrow);
-        let r2 = (self.0.l[2] & borrow) | (r2 & !borrow);
-        let r3 = (self.0.l[3] & borrow) | (r3 & !borrow);
-        let r4 = (self.0.l[4] & borrow) | (r4 & !borrow);
-        let r5 = (self.0.l[5] & borrow) | (r5 & !borrow);
+        let mut bs = [0u8; 48];
+        bs[16..].copy_from_slice(&okm[..32]);
+        let db = Fp::from_bytes_be(&bs).unwrap();
 
-        Fp::from_raw_unchecked([r0, r1, r2, r3, r4, r5])
-    }
+        bs[16..].copy_from_slice(&okm[32..]);
+        let da = Fp::from_bytes_be(&bs).unwrap();
 
-    #[cfg(feature = "hash_to_curve")]
-    #[inline(always)]
-    pub(crate) const fn montgomery_reduce(
-        t0: u64,
-        t1: u64,
-        t2: u64,
-        t3: u64,
-        t4: u64,
-        t5: u64,
-        t6: u64,
-        t7: u64,
-        t8: u64,
-        t9: u64,
-        t10: u64,
-        t11: u64,
-    ) -> Self {
-        use crate::util::{adc, mac};
-
-        // The Montgomery reduction here is based on Algorithm 14.32 in
-        // Handbook of Applied Cryptography
-        // <http://cacr.uwaterloo.ca/hac/about/chap14.pdf>.
-
-        let k = t0.wrapping_mul(INV);
-        let (_, carry) = mac(t0, k, MODULUS[0], 0);
-        let (r1, carry) = mac(t1, k, MODULUS[1], carry);
-        let (r2, carry) = mac(t2, k, MODULUS[2], carry);
-        let (r3, carry) = mac(t3, k, MODULUS[3], carry);
-        let (r4, carry) = mac(t4, k, MODULUS[4], carry);
-        let (r5, carry) = mac(t5, k, MODULUS[5], carry);
-        let (r6, r7) = adc(t6, 0, carry);
-
-        let k = r1.wrapping_mul(INV);
-        let (_, carry) = mac(r1, k, MODULUS[0], 0);
-        let (r2, carry) = mac(r2, k, MODULUS[1], carry);
-        let (r3, carry) = mac(r3, k, MODULUS[2], carry);
-        let (r4, carry) = mac(r4, k, MODULUS[3], carry);
-        let (r5, carry) = mac(r5, k, MODULUS[4], carry);
-        let (r6, carry) = mac(r6, k, MODULUS[5], carry);
-        let (r7, r8) = adc(t7, r7, carry);
-
-        let k = r2.wrapping_mul(INV);
-        let (_, carry) = mac(r2, k, MODULUS[0], 0);
-        let (r3, carry) = mac(r3, k, MODULUS[1], carry);
-        let (r4, carry) = mac(r4, k, MODULUS[2], carry);
-        let (r5, carry) = mac(r5, k, MODULUS[3], carry);
-        let (r6, carry) = mac(r6, k, MODULUS[4], carry);
-        let (r7, carry) = mac(r7, k, MODULUS[5], carry);
-        let (r8, r9) = adc(t8, r8, carry);
-
-        let k = r3.wrapping_mul(INV);
-        let (_, carry) = mac(r3, k, MODULUS[0], 0);
-        let (r4, carry) = mac(r4, k, MODULUS[1], carry);
-        let (r5, carry) = mac(r5, k, MODULUS[2], carry);
-        let (r6, carry) = mac(r6, k, MODULUS[3], carry);
-        let (r7, carry) = mac(r7, k, MODULUS[4], carry);
-        let (r8, carry) = mac(r8, k, MODULUS[5], carry);
-        let (r9, r10) = adc(t9, r9, carry);
-
-        let k = r4.wrapping_mul(INV);
-        let (_, carry) = mac(r4, k, MODULUS[0], 0);
-        let (r5, carry) = mac(r5, k, MODULUS[1], carry);
-        let (r6, carry) = mac(r6, k, MODULUS[2], carry);
-        let (r7, carry) = mac(r7, k, MODULUS[3], carry);
-        let (r8, carry) = mac(r8, k, MODULUS[4], carry);
-        let (r9, carry) = mac(r9, k, MODULUS[5], carry);
-        let (r10, r11) = adc(t10, r10, carry);
-
-        let k = r5.wrapping_mul(INV);
-        let (_, carry) = mac(r5, k, MODULUS[0], 0);
-        let (r6, carry) = mac(r6, k, MODULUS[1], carry);
-        let (r7, carry) = mac(r7, k, MODULUS[2], carry);
-        let (r8, carry) = mac(r8, k, MODULUS[3], carry);
-        let (r9, carry) = mac(r9, k, MODULUS[4], carry);
-        let (r10, carry) = mac(r10, k, MODULUS[5], carry);
-        let (r11, _) = adc(t11, r11, carry);
-
-        // Attempt to subtract the modulus, to ensure the value
-        // is smaller than the modulus.
-        (&Fp::from_raw_unchecked([r6, r7, r8, r9, r10, r11])).subtract_p()
+        db * F_2_256 + da
     }
 }
 

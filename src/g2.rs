@@ -797,6 +797,7 @@ mod tests {
     use super::*;
 
     use crate::fp::Fp;
+    use ff::Field;
     use rand_core::SeedableRng;
     use rand_xorshift::XorShiftRng;
 

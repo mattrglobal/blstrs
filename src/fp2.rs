@@ -191,13 +191,6 @@ impl Fp2 {
         Fp2(blst_fp2 { fp: [c0.0, c1.0] })
     }
 
-    #[inline]
-    pub const fn one() -> Self {
-        Fp2(blst_fp2 {
-            fp: [Fp::one().0, Fp::zero().0],
-        })
-    }
-
     /// Multiplies `self` with `3`, returning the result.
     pub fn mul3(&self) -> Self {
         let mut out = *self;

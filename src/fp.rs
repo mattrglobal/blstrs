@@ -564,16 +564,6 @@ impl Fp {
         MODULUS_REPR
     }
 
-    #[inline]
-    pub const fn zero() -> Self {
-        ZERO
-    }
-
-    #[inline]
-    pub const fn one() -> Self {
-        R
-    }
-
     /// Attempts to convert a little-endian byte representation of
     /// a scalar into an `Fp`, failing if the input is not canonical.
     pub fn from_bytes_le(bytes: &[u8; 48]) -> CtOption<Fp> {

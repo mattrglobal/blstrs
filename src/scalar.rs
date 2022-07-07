@@ -601,25 +601,6 @@ impl Scalar {
         CtOption::new(Scalar(out), is_some)
     }
 
-    /// Hash an arbitrary data to Scalar as described in the below IETF spec
-    /// <https://www.ietf.org/archive/id/draft-irtf-cfrg-hash-to-curve-13.html#name-hashing-to-a-finite-field>
-    pub fn hash_to<T1, T2>(msg: T1, dst: T2) -> CtOption<Self>
-    where
-        T1: AsRef<[u8]>,
-        T2: AsRef<[u8]>,
-    {
-        let mut out = blst_fr::default();
-        let raw = match blst_scalar::hash_to(msg.as_ref(), dst.as_ref()) {
-            Some(raw) => raw,
-            None => return CtOption::new(Scalar(out), Choice::from(0u8)),
-        };
-
-        let is_some = Choice::from(unsafe { blst_scalar_fr_check(&raw) as u8 });
-        unsafe { blst_fr_from_scalar(&mut out, &raw) };
-
-        CtOption::new(Scalar(out), is_some)
-    }
-
     #[allow(clippy::match_like_matches_macro)]
     pub fn is_quad_res(&self) -> Choice {
         match self.legendre() {

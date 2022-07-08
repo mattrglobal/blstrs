@@ -16,7 +16,11 @@ use group::{
 use rand_core::RngCore;
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
 
-use crate::{fp::Fp, Bls12, Engine, G2Affine, Gt, PairingCurveAffine, Scalar};
+use crate::{
+    fp::Fp,
+    hash_to_curve::{ExpandMessage, HashToField},
+    Bls12, Engine, G2Affine, Gt, PairingCurveAffine, Scalar,
+};
 
 /// This is an element of $\mathbb{G}_1$ represented in the affine coordinate space.
 /// It is ideal to keep elements in this representation to reduce memory usage and
@@ -636,6 +640,17 @@ impl G1Projective {
                 aug.as_ptr(),
                 aug.len(),
             );
+        }
+        res
+    }
+
+    /// Generic hash to curve implementation.
+    pub fn hash_to<X: ExpandMessage>(message: &[u8], dst: &[u8]) -> Self {
+        let mut res = Self::identity();
+        let mut u = [Fp::default(); 2];
+        Fp::hash_to_field::<X>(message, dst, &mut u);
+        unsafe {
+            blst_map_to_g1(&mut res.0, &u[0].0, &u[1].0);
         }
         res
     }
@@ -1442,5 +1457,84 @@ mod tests {
         let pippenger = G1Projective::multi_exp(points.as_slice(), scalars.as_slice());
 
         assert_eq!(naive, pippenger);
+    }
+
+    // test vectors from the draft 10 RFC
+    #[test]
+    fn test_hash_to_curve_10() {
+        use crate::{g1::G1Affine, hash_to_curve::ExpandMsgXmd};
+        use std::convert::TryFrom;
+
+        struct TestCase {
+            msg: &'static [u8],
+            expected: [&'static str; 2],
+        }
+
+        const DOMAIN: &[u8] = b"QUUX-V01-CS02-with-BLS12381G1_XMD:SHA-256_SSWU_RO_";
+
+        let cases = vec![
+        TestCase {
+            msg: b"",
+            expected: [
+                "052926add2207b76ca4fa57a8734416c8dc95e24501772c814278700eed6d1e4e8cf62d9c09db0fac349612b759e79a1",
+                "08ba738453bfed09cb546dbb0783dbb3a5f1f566ed67bb6be0e8c67e2e81a4cc68ee29813bb7994998f3eae0c9c6a265",
+            ],
+        },
+        TestCase {
+            msg: b"abc",
+            expected: [
+                "03567bc5ef9c690c2ab2ecdf6a96ef1c139cc0b2f284dca0a9a7943388a49a3aee664ba5379a7655d3c68900be2f6903",
+                "0b9c15f3fe6e5cf4211f346271d7b01c8f3b28be689c8429c85b67af215533311f0b8dfaaa154fa6b88176c229f2885d"
+            ],
+        },
+        TestCase {
+            msg: b"abcdef0123456789",
+            expected: [
+                "11e0b079dea29a68f0383ee94fed1b940995272407e3bb916bbf268c263ddd57a6a27200a784cbc248e84f357ce82d98",
+                "03a87ae2caf14e8ee52e51fa2ed8eefe80f02457004ba4d486d6aa1f517c0889501dc7413753f9599b099ebcbbd2d709"
+            ]
+        },
+        TestCase {
+            msg: b"q128_qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq\
+                   qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq\
+                   qqqqqqqqqqqqqqqqqqqqqqqqq",
+            expected: [
+                "15f68eaa693b95ccb85215dc65fa81038d69629f70aeee0d0f677cf22285e7bf58d7cb86eefe8f2e9bc3f8cb84fac488",
+                "1807a1d50c29f430b8cafc4f8638dfeeadf51211e1602a5f184443076715f91bb90a48ba1e370edce6ae1062f5e6dd38"
+            ]
+        },
+        TestCase {
+            msg: b"a512_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\
+                   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\
+                   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\
+                   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\
+                   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\
+                   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\
+                   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\
+                   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\
+                   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\
+                   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            expected: [
+                "082aabae8b7dedb0e78aeb619ad3bfd9277a2f77ba7fad20ef6aabdc6c31d19ba5a6d12283553294c1825c4b3ca2dcfe",
+                "05b84ae5a942248eea39e1d91030458c40153f3b654ab7872d779ad1e942856a20c438e8d99bc8abfbf74729ce1f7ac8"
+            ]
+        }
+    ];
+
+        for case in cases {
+            let g = G1Projective::hash_to::<ExpandMsgXmd<sha2::Sha256>>(&case.msg, DOMAIN);
+
+            let expected_x = Fp::from_bytes_be(
+                &<[u8; 48]>::try_from(hex::decode(case.expected[0]).unwrap()).unwrap(),
+            )
+            .unwrap();
+            let expected_y = Fp::from_bytes_be(
+                &<[u8; 48]>::try_from(hex::decode(case.expected[1]).unwrap()).unwrap(),
+            )
+            .unwrap();
+            let expected = G1Affine::from_raw_unchecked(expected_x, expected_y, false);
+
+            assert_eq!(expected, g.to_affine());
+        }
     }
 }

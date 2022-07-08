@@ -16,6 +16,8 @@ use crate::generic_array::{
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
+const OVERSIZE_DST_THRESHOLD: usize = 255;
+
 const OVERSIZE_DST_SALT: &[u8] = b"H2C-OVERSIZE-DST-";
 
 /// The domain separation tag for a message expansion.
@@ -37,7 +39,7 @@ impl<'x, L: ArrayLength<u8>> ExpandMsgDst<'x, L> {
     where
         H: Default + Update + ExtendableOutputDirty,
     {
-        if dst.len() > 255 {
+        if dst.len() > OVERSIZE_DST_THRESHOLD {
             let mut data = GenericArray::<u8, L>::default();
             H::default()
                 .chain(OVERSIZE_DST_SALT)

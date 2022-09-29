@@ -1537,4 +1537,25 @@ mod tests {
             assert_eq!(expected, g.to_affine());
         }
     }
+
+    #[test]
+    fn test_multi_exp() {
+        const SIZE: usize = 10;
+        let mut rng = XorShiftRng::from_seed([
+            0x59, 0x62, 0xbe, 0x5d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06,
+            0xbc, 0xe5,
+        ]);
+
+        let points: Vec<G1Projective> = (0..SIZE).map(|_| G1Projective::random(&mut rng)).collect();
+        let scalars: Vec<Scalar> = (0..SIZE).map(|_| Scalar::random(&mut rng)).collect();
+
+        let mut naive = points[0] * scalars[0];
+        for i in 1..SIZE {
+            naive += points[i] * scalars[i];
+        }
+
+        let pippenger = G1Projective::multi_exp(points.as_slice(), scalars.as_slice());
+
+        assert_eq!(naive, pippenger);
+    }
 }

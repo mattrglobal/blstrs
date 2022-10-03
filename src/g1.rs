@@ -655,8 +655,9 @@ impl G1Projective {
         res
     }
 
-    /// Perform a multi-exponentiation, aka "multi-scalar-multiplication" (MSM) using `blst`'s implementation of Pippenger's algorithm.
-    /// Note: `scalars` is cloned in this method.
+    /// Multiscalar multiplication.
+    /// Copied from https://github.com/filecoin-project/blstrs/pull/37
+    /// TODO: remove it once upstream `blstrs` has these changes
     pub fn multi_exp(points: &[Self], scalars: &[Scalar]) -> Self {
         let n = if points.len() < scalars.len() {
             points.len()
@@ -867,13 +868,6 @@ impl PairingCurveAffine for G1Affine {
 
     fn pairing_with(&self, other: &Self::Pair) -> Self::PairingResult {
         <Bls12 as Engine>::pairing(self, other)
-    }
-}
-
-#[cfg(feature = "gpu")]
-impl ec_gpu::GpuName for G1Affine {
-    fn name() -> String {
-        ec_gpu::name!()
     }
 }
 
@@ -1536,26 +1530,5 @@ mod tests {
 
             assert_eq!(expected, g.to_affine());
         }
-    }
-
-    #[test]
-    fn test_multi_exp() {
-        const SIZE: usize = 10;
-        let mut rng = XorShiftRng::from_seed([
-            0x59, 0x62, 0xbe, 0x5d, 0x76, 0x3d, 0x31, 0x8d, 0x17, 0xdb, 0x37, 0x32, 0x54, 0x06,
-            0xbc, 0xe5,
-        ]);
-
-        let points: Vec<G1Projective> = (0..SIZE).map(|_| G1Projective::random(&mut rng)).collect();
-        let scalars: Vec<Scalar> = (0..SIZE).map(|_| Scalar::random(&mut rng)).collect();
-
-        let mut naive = points[0] * scalars[0];
-        for i in 1..SIZE {
-            naive += points[i] * scalars[i];
-        }
-
-        let pippenger = G1Projective::multi_exp(points.as_slice(), scalars.as_slice());
-
-        assert_eq!(naive, pippenger);
     }
 }

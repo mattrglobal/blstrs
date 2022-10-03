@@ -2,11 +2,9 @@
 //! where `q = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001`
 
 use core::{
-    borrow::Borrow,
     cmp,
     convert::TryInto,
     fmt,
-    iter::{Product, Sum},
     ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign},
 };
 
@@ -316,30 +314,6 @@ impl MulAssign<&Scalar> for Scalar {
     #[inline]
     fn mul_assign(&mut self, rhs: &Scalar) {
         unsafe { blst_fr_mul(&mut self.0, &self.0, &rhs.0) };
-    }
-}
-
-impl<T> Sum<T> for Scalar
-where
-    T: Borrow<Scalar>,
-{
-    fn sum<I>(iter: I) -> Self
-    where
-        I: Iterator<Item = T>,
-    {
-        iter.fold(Scalar::zero(), |sum, x| sum + x.borrow())
-    }
-}
-
-impl<T> Product<T> for Scalar
-where
-    T: Borrow<Scalar>,
-{
-    fn product<I>(iter: I) -> Self
-    where
-        I: Iterator<Item = T>,
-    {
-        iter.fold(Scalar::one(), |product, x| product * x.borrow())
     }
 }
 
@@ -699,13 +673,6 @@ impl Scalar {
     #[inline]
     pub fn square_assign(&mut self) {
         unsafe { blst_fr_sqr(&mut self.0, &self.0) };
-    }
-}
-
-#[cfg(feature = "gpu")]
-impl ec_gpu::GpuName for Scalar {
-    fn name() -> String {
-        ec_gpu::name!()
     }
 }
 

@@ -1,4 +1,4 @@
-**Note** This is a temporary upstream fork of [BLSTRS](https://github.com/filecoin-project/blstrs) to allow for experimental changes that maybe contributed back once experimentation is complete.
+**Note** This is a fork of [BLSTRS](https://github.com/filecoin-project/blstrs).
 
 # `blstrs`
 
